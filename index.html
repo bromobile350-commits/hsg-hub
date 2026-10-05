@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HSG 总管理</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e5e7eb;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--accent:#2563eb}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ad;--line:#272b33;--accent:#60a5fa}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;padding:16px 16px 32px}
+h1{font-size:20px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.totals{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;margin-bottom:14px}
+.t{text-align:center}.t b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.t span{font-size:11px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.name{font-weight:600;font-size:16px}
+.pill{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.ok{background:var(--ok)}.ext_down{background:var(--warn)}.offline{background:var(--bad)}
+.meta{color:var(--muted);font-size:12px;margin:2px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.grid div{background:var(--bg);border-radius:10px;padding:6px 4px;text-align:center}
+.grid b{display:block;font-size:17px;font-variant-numeric:tabular-nums}.grid span{font-size:11px;color:var(--muted)}
+.week{display:flex;align-items:flex-end;gap:4px;height:46px;margin:4px 0 2px}
+.bar{flex:1;background:var(--accent);opacity:.75;border-radius:3px 3px 0 0;min-height:2px}
+.days{display:flex;gap:4px;font-size:10px;color:var(--muted)}.days span{flex:1;text-align:center}
+.book{font-size:12px;color:var(--muted);margin-top:8px}
+.msg{color:var(--muted);text-align:center;padding:40px 0}
+button{width:100%;padding:10px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:15px;margin-top:4px}
+</style>
+</head>
+<body>
+<h1>HSG 总管理</h1>
+<div class="sub" id="sub">载入中…</div>
+<div id="root"></div>
+<button id="refresh">刷新</button>
+<script>
+const API = (location.hostname.endsWith('github.io') ? 'https://clock-support-ladle.ngrok-free.dev/' : '');   // page on GitHub Pages, data from the hub
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ago = s => s < 90 ? '刚刚' : s < 3600 ? Math.round(s/60) + ' 分钟前' : s < 86400 ? Math.round(s/3600) + ' 小时前' : Math.round(s/86400) + ' 天前';
+const STATUS = {ok:'在线', ext_down:'扩展停了', offline:'离线'};
+async function load(){
+  const sub = document.getElementById('sub'), root = document.getElementById('root');
+  try{
+    const r = await fetch(API + 'api/overview', {headers:{'X-TG-Init-Data': tg ? tg.initData : '', 'ngrok-skip-browser-warning': '1'}, cache:'no-store'});
+    if (r.status === 403){ root.innerHTML = '<div class="msg">请在 Telegram 里从 bot 菜单打开</div>'; sub.textContent=''; return; }
+    const d = await r.json();
+    const t = d.total;
+    sub.textContent = `今天 ${d.today.slice(5)} · ${d.stations.length} 台电脑 · 更新于 ${new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'})}`;
+    let h = `<div class="totals">
+      <div class="t"><b>${t.asked}</b><span>询问</span></div><div class="t"><b>${t.new}</b><span>新买家</span></div>
+      <div class="t"><b>${t.sent}</b><span>回复</span></div><div class="t"><b>${t.bookings}</b><span>预约</span></div>
+      <div class="t"><b>${t.human}</b><span>转人工</span></div></div>`;
+    if (!d.stations.length) h += '<div class="msg">还没有电脑上报</div>';
+    for (const s of d.stations){
+      const td = s.today || {}, hl = s.health || {};
+      const max = Math.max(1, ...s.week.map(w => w.asked));
+      h += `<div class="card">
+        <div class="row"><span class="name">${esc(s.label)}</span><span class="pill ${s.status}">${STATUS[s.status]}</span></div>
+        <div class="meta">上报 ${ago(s.last_seen_s)} · 扩展 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)} · 等你回 ${hl.waiting_for_boss ?? 0} · 模型 ${esc(hl.model || '-')}</div>
+        <div class="grid">
+          <div><b>${td.asked ?? 0}</b><span>询问</span></div><div><b>${td.sent ?? 0}</b><span>回复</span></div>
+          <div><b>${(td.bookings || []).length}</b><span>预约</span></div><div><b>${td.human ?? 0}</b><span>转人工</span></div></div>
+        <div class="week">${s.week.map(w => `<div class="bar" title="${w.day} 询问 ${w.asked}" style="height:${Math.round(w.asked / max * 100)}%"></div>`).join('')}</div>
+        <div class="days">${s.week.map(w => `<span>${w.day.slice(8)}</span>`).join('')}</div>
+        ${(td.bookings || []).length ? `<div class="book">预约:${td.bookings.map(esc).join('<br>')}</div>` : ''}
+      </div>`;
+    }
+    root.innerHTML = h;
+  }catch(e){ root.innerHTML = '<div class="msg">连不上中枢(电脑关了或断网?)</div>'; sub.textContent=''; }
+}
+document.getElementById('refresh').onclick = load;
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
