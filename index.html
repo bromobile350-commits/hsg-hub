@@ -29,10 +29,23 @@ h1{font-size:20px;margin:0 0 2px}
 .book{font-size:12px;color:var(--muted);margin-top:8px}
 .msg{color:var(--muted);text-align:center;padding:40px 0}
 button{width:100%;padding:10px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:15px;margin-top:4px}
+.tabs{display:flex;gap:6px;margin:0 0 12px}.tabs a{flex:1;text-align:center;padding:8px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:14px}
+.tabs a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px;margin-bottom:8px}
+.item{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;color:var(--text);text-decoration:none}
+.item .l1{display:flex;justify-content:space-between;gap:8px;font-weight:600}.item .l2{color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:11px;padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:500}.th{background:#fde68a;color:#78350f}.tb{background:#bbf7d0;color:#14532d}
+.msgs{display:flex;flex-direction:column;gap:6px}.b{max-width:82%;padding:8px 10px;border-radius:14px;white-space:pre-wrap;word-break:break-word;font-size:14px}
+.b small{display:block;font-size:10px;opacity:.65;margin-top:2px}
+.buyer{align-self:flex-start;background:var(--card);border:1px solid var(--line)}.bot{align-self:flex-end;background:var(--accent);color:#fff}
+.boss{align-self:flex-end;background:#7c3aed;color:#fff}.holding{align-self:flex-end;background:#64748b;color:#fff}
+.note{align-self:center;font-size:12px;color:var(--muted);background:transparent;text-align:center;max-width:95%}
+.back{display:inline-block;margin-bottom:10px;color:var(--accent);text-decoration:none}
 </style>
 </head>
 <body>
 <h1>HSG 总管理</h1>
+<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a></div>
 <div class="sub" id="sub">载入中…</div>
 <div id="root"></div>
 <button id="refresh">刷新</button>
@@ -46,7 +59,7 @@ const STATUS = {ok:'在线', ext_down:'扩展停了', offline:'离线'};
 async function load(){
   const sub = document.getElementById('sub'), root = document.getElementById('root');
   try{
-    const r = await fetch(API + 'api/overview', {headers:{'X-TG-Init-Data': tg ? tg.initData : '', 'ngrok-skip-browser-warning': '1'}, cache:'no-store'});
+    const r = await fetch(API + 'api/overview', {headers:H(), cache:'no-store'});
     if (r.status === 403){ root.innerHTML = '<div class="msg">请在 Telegram 里从 bot 菜单打开</div>'; sub.textContent=''; return; }
     const d = await r.json();
     const t = d.total;
@@ -73,8 +86,49 @@ async function load(){
     root.innerHTML = h;
   }catch(e){ root.innerHTML = '<div class="msg">连不上中枢(电脑关了或断网?)</div>'; sub.textContent=''; }
 }
-document.getElementById('refresh').onclick = load;
-load(); setInterval(load, 60000);
+let view = 'overview', stations = [], selSt = '', selDay = '';
+const H = () => ({'X-TG-Init-Data': tg ? tg.initData : '', 'ngrok-skip-browser-warning': '1'});
+const ymd = d => d.toISOString().slice(0, 10);
+const days = () => { const out = []; const now = new Date(Date.now() + 8*3600e3); for (let i = 0; i < 7; i++){ out.push(ymd(new Date(now - i*86400e3))); } return out; };
+async function loadChats(){
+  view = 'chats';
+  const sub = document.getElementById('sub'), root = document.getElementById('root');
+  if (!stations.length){ try{ const r = await fetch(API + 'api/overview', {headers:H()}); stations = (await r.json()).stations || []; }catch(e){} }
+  selSt = selSt || (stations[0] || {}).station || ''; selDay = selDay || days()[0];
+  let h = `<select id="st">${stations.map(s => `<option value="${esc(s.station)}" ${s.station===selSt?'selected':''}>${esc(s.label)}</option>`).join('')}</select>
+           <select id="dy">${days().map((d,i) => `<option value="${d}" ${d===selDay?'selected':''}>${d.slice(5)}${i===0?' 今天':i===1?' 昨天':''}</option>`).join('')}</select><div id="list"><div class="msg">载入中…</div></div>`;
+  root.innerHTML = h; sub.textContent = '每台电脑每小时交一次当天的对话';
+  document.getElementById('st').onchange = e => { selSt = e.target.value; loadChats(); };
+  document.getElementById('dy').onchange = e => { selDay = e.target.value; loadChats(); };
+  try{
+    const r = await fetch(API + `api/chats?station=${encodeURIComponent(selSt)}&day=${selDay}`, {headers:H()});
+    const d = await r.json();
+    const list = document.getElementById('list');
+    if (!d.chats || !d.chats.length){ list.innerHTML = '<div class="msg">这天还没有交上来的对话</div>'; return; }
+    list.innerHTML = `<div class="sub">${d.chats.length} 个买家${d.uploaded_at ? ' · 交上来 ' + new Date(d.uploaded_at*1000).toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'}) : ''}</div>` +
+      d.chats.map(c => `<a class="item" href="#" data-tid="${esc(c.tid)}"><div class="l1"><span>${esc(c.buyer)}${c.human?'<span class="tag th">转人工</span>':''}${c.booking?'<span class="tag tb">预约</span>':''}</span><span style="color:var(--muted);font-weight:400;font-size:12px">${esc(c.last.slice(11,16))}</span></div><div class="l2">${esc(c.listing)}${c.listing?' · ':''}${esc(c.last_text)}</div></a>`).join('');
+    list.querySelectorAll('.item').forEach(a => a.onclick = ev => { ev.preventDefault(); loadChat(a.dataset.tid); });
+  }catch(e){ document.getElementById('list').innerHTML = '<div class="msg">连不上中枢</div>'; }
+}
+async function loadChat(tid){
+  view = 'chat';
+  const root = document.getElementById('root'), sub = document.getElementById('sub');
+  root.innerHTML = '<div class="msg">载入中…</div>';
+  const r = await fetch(API + `api/chat?station=${encodeURIComponent(selSt)}&day=${selDay}&tid=${encodeURIComponent(tid)}`, {headers:H()});
+  const d = await r.json();
+  const NOTE = {note_human:'🙋 转给 Boss:', note_booking:'📅 预约:', note_filtered:'🚫 被拦:', note_fail:'❌ 发送失败:', note_skip:'(不用回)'};
+  const WHO = {bot:'机器', boss:'Boss 转发', holding:'机器(请稍等)'};
+  sub.textContent = (d.listing || '');
+  root.innerHTML = `<a href="#" class="back" id="bk">‹ 返回列表</a><div class="name" style="margin-bottom:8px">${esc(d.buyer)}</div><div class="msgs">` +
+    d.timeline.map(x => x.who.startsWith('note') ? `<div class="b note">${NOTE[x.who]||''} ${esc(x.text)} · ${x.t}</div>`
+      : `<div class="b ${x.who}">${esc(x.text)}<small>${x.who==='buyer'?'':WHO[x.who]+' · '}${x.t}</small></div>`).join('') + '</div>';
+  document.getElementById('bk').onclick = e => { e.preventDefault(); loadChats(); };
+  window.scrollTo(0, document.body.scrollHeight);
+}
+document.getElementById('t1').onclick = e => { e.preventDefault(); document.getElementById('t1').className='on'; document.getElementById('t2').className=''; view='overview'; load(); };
+document.getElementById('t2').onclick = e => { e.preventDefault(); document.getElementById('t2').className='on'; document.getElementById('t1').className=''; loadChats(); };
+document.getElementById('refresh').onclick = () => view === 'overview' ? load() : view === 'chats' ? loadChats() : null;
+load(); setInterval(() => { if (view === 'overview') load(); }, 60000);
 </script>
 </body>
 </html>
