@@ -76,6 +76,7 @@ async function load(){
         <div class="row"><span class="name">${esc(s.label)}</span><span class="pill ${s.status}">${STATUS[s.status]}</span></div>
         <div class="meta">上报 ${ago(s.last_seen_s)} · 扩展 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)} · 等你回 ${hl.waiting_for_boss ?? 0} · 模型 ${esc(hl.model || '-')} · 对话记录 ${hl.last_upload ? hl.last_upload.slice(5) + ' 已交' : '还没交'} · 程序 ${hl.code_version ? '第 ' + hl.code_version + ' 版' : '未开自动更新'}</div>
         ${(() => { const c = hl.ai_cfg || null, t = hl.ai_today || {}; if (!c) return '<div class="meta">AI 设置:这台还没报上来(要先装自动更新)</div>';
+            if (c.unknown) return `<div class="meta">AI 设置:读不到(${esc(c.error || '?')})</div>`;
             const short = m => String(m || '').replace(/^.*\//, '').replace(/@.*$/, '');
             const fb = (c.fallbacks || []).map(short);
             const used = Object.entries(t.models || {}).map(([m, n]) => short(m) + '×' + n).join(' ');
