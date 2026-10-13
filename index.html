@@ -82,6 +82,7 @@ async function load(){
             const used = Object.entries(t.models || {}).map(([m, n]) => short(m) + '×' + n).join(' ');
             return `<div class="meta">AI:主 ${esc(short(c.primary) || '?')} · 备用 ${fb.length ? esc(fb.join('、')) + ' ✅' : '<b style="color:var(--bad)">没有备用 ❌</b>'}${used ? ' · 今天 ' + esc(used) : ''}${t.errors ? ' · 出错 ' + t.errors : ''}</div>`; })()}
         ${(() => { const L = hl.listings || {}; if (!L.day) return '<div class="meta">Listing:还没读到(每天 11 点读一次)</div>';
+            if (L.total != null) return `<div class="meta">Listing(${L.day.slice(5)} 读):在售 ${L.active} · 已售 ${L.sold} · 今天新上架 ${L.new_today} · 7 天新上架 ${L.new_7d} · 总点击 ${L.clicks}</div>`;
             return `<div class="meta">Listing(${L.day.slice(5)}):挂着 ${L.active}${L.new_since_last == null ? ' · 第一次读,明天开始算新发' : ' · 比上次新发 ' + L.new_since_last + ' · 下架 ' + L.gone_since_last}${L.new_7d != null ? ' · 7 天新发 ' + L.new_7d : ''}</div>`; })()}
         <div class="grid">
           <div><b>${td.asked ?? 0}</b><span>询问</span></div><div><b>${td.sent ?? 0}</b><span>回复</span></div>
