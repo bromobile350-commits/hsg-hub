@@ -157,7 +157,7 @@ async function loadToList(){
     const items = (d.items || []).filter(u => !selOut || u.outlet === selOut);
     const list = document.getElementById('list');
     if (!items.length){ list.innerHTML = '<div class="msg">没有待上架的机</div>'; return; }
-    const JOB = {queued:'已准备,等电脑打开', opened:'发帖页已打开', posted:'已发布', failed:'失败'};
+    const JOB = {queued:'已准备,等电脑打开', opened:'已填好,等员工按发布', posted:'已发布', failed:'填表失败', closed:'窗口被关了', expired:'20 分钟没发,已关'};
     list.innerHTML = `<div class="sub">${items.length} 台 · 这台已在售 ${d.n_posted} 个帖</div>` + items.map(u => `<div class="unit">
       <img loading="lazy" src="${esc(u.img)}"><div class="u"><b>${esc(u.title)}</b>${u.elsewhere?'<span class="tag te">别台有发</span>':''}${u.job?`<span class="tag tq">${JOB[u.job]||esc(u.job)}</span>`:''}
       <div class="meta" style="margin:2px 0 0">${u.battery?'电池 '+u.battery+'% · ':''}${u.set?esc(u.set)+' set · ':''}${esc(u.outlet)}${u.division==='lelongfon'?' · 清货':''}</div>
