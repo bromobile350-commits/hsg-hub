@@ -40,12 +40,17 @@ select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);ba
 .buyer{align-self:flex-start;background:var(--card);border:1px solid var(--line)}.bot{align-self:flex-end;background:var(--accent);color:#fff}
 .boss{align-self:flex-end;background:#7c3aed;color:#fff}.holding{align-self:flex-end;background:#64748b;color:#fff}
 .note{align-self:center;font-size:12px;color:var(--muted);background:transparent;text-align:center;max-width:95%}
+.unit{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:8px}
+.unit img{width:72px;height:72px;object-fit:cover;border-radius:8px;flex:none;background:var(--bg)}
+.unit .u{flex:1;min-width:0}.unit .u b{font-size:14px}.unit .p{color:var(--accent);font-weight:700}
+.unit button{width:auto;padding:6px 10px;font-size:13px;margin-top:6px}.unit button:disabled{opacity:.5}
+.tq{background:#dbeafe;color:#1e3a8a}.te{background:#e5e7eb;color:#374151}
 .back{display:inline-block;margin-bottom:10px;color:var(--accent);text-decoration:none}
 </style>
 </head>
 <body>
 <h1>HSG 总管理</h1>
-<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a></div>
+<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a><a href="#" id="t3">待上架</a></div>
 <div class="sub" id="sub">载入中…</div>
 <div id="root"></div>
 <button id="refresh">刷新</button>
@@ -134,9 +139,44 @@ async function loadChat(tid){
   document.getElementById('bk').onclick = e => { e.preventDefault(); loadChats(); };
   window.scrollTo(0, document.body.scrollHeight);
 }
-document.getElementById('t1').onclick = e => { e.preventDefault(); document.getElementById('t1').className='on'; document.getElementById('t2').className=''; view='overview'; load(); };
-document.getElementById('t2').onclick = e => { e.preventDefault(); document.getElementById('t2').className='on'; document.getElementById('t1').className=''; loadChats(); };
-document.getElementById('refresh').onclick = () => view === 'overview' ? load() : view === 'chats' ? loadChats() : null;
+
+let selOut = '';
+async function loadToList(){
+  view = 'tolist';
+  const sub = document.getElementById('sub'), root = document.getElementById('root');
+  if (!stations.length){ try{ const r = await fetch(API + 'api/overview', {headers:H()}); stations = (await r.json()).stations || []; }catch(e){} }
+  selSt = selSt || (stations[0] || {}).station || '';
+  root.innerHTML = `<select id="st">${stations.map(s => `<option value="${esc(s.station)}" ${s.station===selSt?'selected':''}>${esc(s.label)}</option>`).join('')}</select>
+    <select id="ou"><option value="">KL + JB</option><option value="KL" ${selOut==='KL'?'selected':''}>只看 KL</option><option value="JB" ${selOut==='JB'?'selected':''}>只看 JB</option></select><div id="list"><div class="msg">载入中…</div></div>`;
+  sub.textContent = '有货、没毛病、这台还没发帖的机';
+  document.getElementById('st').onchange = e => { selSt = e.target.value; loadToList(); };
+  document.getElementById('ou').onchange = e => { selOut = e.target.value; loadToList(); };
+  try{
+    const r = await fetch(API + `api/tolist?station=${encodeURIComponent(selSt)}`, {headers:H(), cache:'no-store'});
+    const d = await r.json();
+    const items = (d.items || []).filter(u => !selOut || u.outlet === selOut);
+    const list = document.getElementById('list');
+    if (!items.length){ list.innerHTML = '<div class="msg">没有待上架的机</div>'; return; }
+    const JOB = {queued:'已准备,等电脑打开', opened:'发帖页已打开', posted:'已发布', failed:'失败'};
+    list.innerHTML = `<div class="sub">${items.length} 台 · 这台已在售 ${d.n_posted} 个帖</div>` + items.map(u => `<div class="unit">
+      <img loading="lazy" src="${esc(u.img)}"><div class="u"><b>${esc(u.title)}</b>${u.elsewhere?'<span class="tag te">别台有发</span>':''}${u.job?`<span class="tag tq">${JOB[u.job]||esc(u.job)}</span>`:''}
+      <div class="meta" style="margin:2px 0 0">${u.battery?'电池 '+u.battery+'% · ':''}${u.set?esc(u.set)+' set · ':''}${esc(u.outlet)}${u.division==='lelongfon'?' · 清货':''}</div>
+      <div class="row"><span class="p">RM${u.price.toLocaleString()}</span><button data-id="${u.id}">${u.job?'重新准备':'上架这台'}</button></div></div></div>`).join('');
+    list.querySelectorAll('button[data-id]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = '准备照片和影片…';
+      try{
+        const r = await fetch(API + 'api/tolist/queue', {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, H()), body: JSON.stringify({station: selSt, unit_id: +b.dataset.id})});
+        const x = await r.json();
+        b.textContent = x.ok ? '✅ 已准备,电脑会打开发帖页' : '❌ ' + (x.error || '失败').slice(0, 40);
+      }catch(e){ b.textContent = '❌ 连不上中枢'; b.disabled = false; }
+    });
+  }catch(e){ document.getElementById('list').innerHTML = '<div class="msg">连不上中枢</div>'; }
+}
+const tab = n => ['t1','t2','t3'].forEach((t,i) => document.getElementById(t).className = (i+1===n ? 'on' : ''));
+document.getElementById('t3').onclick = e => { e.preventDefault(); tab(3); loadToList(); };
+document.getElementById('t1').onclick = e => { e.preventDefault(); tab(1); view='overview'; load(); };
+document.getElementById('t2').onclick = e => { e.preventDefault(); tab(2); loadChats(); };
+document.getElementById('refresh').onclick = () => view === 'overview' ? load() : view === 'chats' ? loadChats() : view === 'tolist' ? loadToList() : null;
 load(); setInterval(() => { if (view === 'overview') load(); }, 60000);
 </script>
 </body>
