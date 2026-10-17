@@ -77,6 +77,8 @@ async function load(){
     const uw = d.usage_week || [], ut = uw.length ? uw[uw.length-1] : {usd:0,tokens:0}, u7 = uw.reduce((a,x) => a + x.usd, 0);
     const umax = Math.max(0.0001, ...uw.map(x => x.usd));
     h += `<div class="card"><div class="row"><span class="name">AI 用量</span><span class="meta" style="margin:0">1 USD = RM${fx.toFixed(2)}</span></div>
+      <select id="uday" style="margin-top:8px">${Array.from({length: 30}, (_, i) => { const dd = ymd(new Date(Date.now() + 8*3600e3 - i*86400e3)); return `<option value="${dd}">${dd.slice(5)}${i===0?' 今天':i===1?' 昨天':''}</option>`; }).join('')}</select>
+      <div id="uday_box"></div>
       <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:8px"><div><b>${ktok(ut.tokens)}</b><span>今天 tokens</span></div>
       <div><b>${rm(ut.usd)}</b><span>今天费用</span></div><div><b>${rm(u7)}</b><span>7 天费用</span></div></div>
       <div class="week">${uw.map(x => `<div class="bar" title="${x.day} ${rm(x.usd)}" style="height:${Math.round(x.usd / umax * 100)}%"></div>`).join('')}</div>
@@ -111,7 +113,19 @@ async function load(){
       </div>`;
     }
     root.innerHTML = h;
+    const us = document.getElementById('uday');
+    if (us){ if (window._uday) us.value = window._uday; us.onchange = () => { window._uday = us.value; loadUsageDay(us.value); }; loadUsageDay(us.value); }
   }catch(e){ root.innerHTML = '<div class="msg">连不上中枢(电脑关了或断网?)</div>'; sub.textContent=''; }
+}
+async function loadUsageDay(day){
+  const box = document.getElementById('uday_box'); if (!box) return;
+  try{
+    const d = await (await fetch(API + 'api/usage?day=' + day, {headers:H(), cache:'no-store'})).json();
+    const fx = d.usd_myr || 4.1, rm = u => 'RM' + (u * fx).toFixed(2), kt = n => n >= 1e6 ? (n/1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n/1e3) + 'K' : String(n);
+    if (!d.stations.length){ box.innerHTML = '<div class="meta" style="margin:6px 0">这天没有记录</div>'; return; }
+    box.innerHTML = `<div class="grid" style="grid-template-columns:repeat(3,1fr);margin:8px 0 4px"><div><b>${kt(d.total.tokens)}</b><span>tokens</span></div><div><b>${d.total.calls}</b><span>次调用</span></div><div><b>${rm(d.total.usd)}</b><span>费用</span></div></div>` +
+      d.stations.map(r => `<div class="meta" style="margin:2px 0">${esc(r.label)}:${r.calls} 次 · ${kt(r.tokens)} tokens · <b>${rm(r.usd)}</b>${r.estimated_calls ? '(' + r.estimated_calls + ' 次估算)' : ''} · ${Object.entries(r.models).map(([m,x]) => esc(m) + ' ' + rm(x.usd)).join(' / ')}</div>`).join('');
+  }catch(e){ box.innerHTML = '<div class="meta">读不到</div>'; }
 }
 let view = 'overview', stations = [], selSt = '', selDay = '';
 const H = () => ({'X-TG-Init-Data': tg ? tg.initData : '', 'ngrok-skip-browser-warning': '1'});
