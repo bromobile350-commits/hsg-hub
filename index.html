@@ -73,6 +73,15 @@ async function load(){
       <div class="t"><b>${t.asked}</b><span>询问</span></div><div class="t"><b>${t.new}</b><span>新买家</span></div>
       <div class="t"><b>${t.sent}</b><span>回复</span></div><div class="t"><b>${t.bookings}</b><span>预约</span></div>
       <div class="t"><b>${t.human}</b><span>转人工</span></div></div>`;
+    const fx = d.usd_myr || 4.1, rm = u => 'RM' + (u * fx).toFixed(2), ktok = n => n >= 1e6 ? (n/1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n/1e3) + 'K' : String(n);
+    const uw = d.usage_week || [], ut = uw.length ? uw[uw.length-1] : {usd:0,tokens:0}, u7 = uw.reduce((a,x) => a + x.usd, 0);
+    const umax = Math.max(0.0001, ...uw.map(x => x.usd));
+    h += `<div class="card"><div class="row"><span class="name">AI 用量</span><span class="meta" style="margin:0">1 USD = RM${fx.toFixed(2)}</span></div>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:8px"><div><b>${ktok(ut.tokens)}</b><span>今天 tokens</span></div>
+      <div><b>${rm(ut.usd)}</b><span>今天费用</span></div><div><b>${rm(u7)}</b><span>7 天费用</span></div></div>
+      <div class="week">${uw.map(x => `<div class="bar" title="${x.day} ${rm(x.usd)}" style="height:${Math.round(x.usd / umax * 100)}%"></div>`).join('')}</div>
+      <div class="days">${uw.map(x => `<span>${x.day.slice(8)}</span>`).join('')}</div>
+      <div class="meta" style="margin:6px 0 0">按 API 官方价估算(GPT-6 Astra 输入 $10 / 输出 $50,Claude Opus 5.5 输入 $4 / 输出 $20,每百万 tokens)。用 Claude / ChatGPT 订阅登录的不按 token 收费,这里是“如果用 API 要付多少”。10/17 更新后才开始计。</div></div>`;
     if (!d.stations.length) h += '<div class="msg">还没有电脑上报</div>';
     for (const s of d.stations){
       const td = s.today || {}, hl = s.health || {};
@@ -90,6 +99,9 @@ async function load(){
         ${(() => { const L = hl.listings || {}; if (!L.day) return '<div class="meta">Listing:还没读到(每天 11 点读一次)</div>';
             if (L.total != null) return `<div class="meta">Listing(${L.day.slice(5)} 读):在售 ${L.active} · 已售 ${L.sold} · 今天新上架 ${L.new_today} · 7 天新上架 ${L.new_7d} · 总点击 ${L.clicks}</div>`;
             return `<div class="meta">Listing(${L.day.slice(5)}):挂着 ${L.active}${L.new_since_last == null ? ' · 第一次读,明天开始算新发' : ' · 比上次新发 ' + L.new_since_last + ' · 下架 ' + L.gone_since_last}${L.new_7d != null ? ' · 7 天新发 ' + L.new_7d : ''}</div>`; })()}
+        ${(() => { const u = s.usage_today; if (!u || !(u.in + u.out)) return '';
+            const per = Object.entries(u.models || {}).map(([m, x]) => `${esc(m)} ${x.calls} 次 ${ktok(x.in + x.out + x.cache_read + x.cache_write)}`).join(' · ');
+            return `<div class="meta">AI 用量今天:${ktok(u.in + u.out + u.cache_read + u.cache_write)} tokens ≈ <b>${rm(u.usd)}</b> · 7 天 ${rm(s.usage_7d_usd || 0)} · ${per}</div>`; })()}
         <div class="grid">
           <div><b>${td.asked ?? 0}</b><span>询问</span></div><div><b>${td.sent ?? 0}</b><span>回复</span></div>
           <div><b>${(td.bookings || []).length}</b><span>预约</span></div><div><b>${td.human ?? 0}</b><span>转人工</span></div></div>
