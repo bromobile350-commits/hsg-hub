@@ -81,7 +81,7 @@ async function load(){
       <div><b>${rm(ut.usd)}</b><span>今天费用</span></div><div><b>${rm(u7)}</b><span>7 天费用</span></div></div>
       <div class="week">${uw.map(x => `<div class="bar" title="${x.day} ${rm(x.usd)}" style="height:${Math.round(x.usd / umax * 100)}%"></div>`).join('')}</div>
       <div class="days">${uw.map(x => `<span>${x.day.slice(8)}</span>`).join('')}</div>
-      <div class="meta" style="margin:6px 0 0">按 API 官方价估算(GPT-6 Astra 输入 $10 / 输出 $50,Claude Opus 5.5 输入 $4 / 输出 $20,每百万 tokens)。用 Claude / ChatGPT 订阅登录的不按 token 收费,这里是“如果用 API 要付多少”。10/17 更新后才开始计。</div></div>`;
+      <div class="meta" style="margin:6px 0 0">按 API 官方价估算(GPT-6 Astra 输入 $10 / 输出 $50,Claude Opus 5.5 输入 $4 / 输出 $20,每百万 tokens)。用 Claude / ChatGPT 订阅登录的不按 token 收费,这里是“如果用 API 要付多少”。第 24 版之前的调用没有 token 记录,按每次约 1.4 万 tokens 估算。</div></div>`;
     if (!d.stations.length) h += '<div class="msg">还没有电脑上报</div>';
     for (const s of d.stations){
       const td = s.today || {}, hl = s.health || {};
@@ -101,7 +101,7 @@ async function load(){
             return `<div class="meta">Listing(${L.day.slice(5)}):挂着 ${L.active}${L.new_since_last == null ? ' · 第一次读,明天开始算新发' : ' · 比上次新发 ' + L.new_since_last + ' · 下架 ' + L.gone_since_last}${L.new_7d != null ? ' · 7 天新发 ' + L.new_7d : ''}</div>`; })()}
         ${(() => { const u = s.usage_today; if (!u || !(u.in + u.out)) return '';
             const per = Object.entries(u.models || {}).map(([m, x]) => `${esc(m)} ${x.calls} 次 ${ktok(x.in + x.out + x.cache_read + x.cache_write)}`).join(' · ');
-            return `<div class="meta">AI 用量今天:${ktok(u.in + u.out + u.cache_read + u.cache_write)} tokens ≈ <b>${rm(u.usd)}</b> · 7 天 ${rm(s.usage_7d_usd || 0)} · ${per}</div>`; })()}
+            return `<div class="meta">AI 用量今天:${ktok(u.in + u.out + u.cache_read + u.cache_write)} tokens ≈ <b>${rm(u.usd)}</b>${u.estimated_calls ? '(其中 ' + u.estimated_calls + ' 次按平均估算)' : ''} · 7 天 ${rm(s.usage_7d_usd || 0)} · ${per}</div>`; })()}
         <div class="grid">
           <div><b>${td.asked ?? 0}</b><span>询问</span></div><div><b>${td.sent ?? 0}</b><span>回复</span></div>
           <div><b>${(td.bookings || []).length}</b><span>预约</span></div><div><b>${td.human ?? 0}</b><span>转人工</span></div></div>
