@@ -209,7 +209,7 @@ async function loadMarket(day){
   try{
     const d = await (await fetch(API + 'api/market' + (day ? '?day=' + day : ''), {headers:H(), cache:'no-store'})).json();
     if (!d.rows || !d.rows.length){ root.innerHTML = '<div class="msg">还没有市场价资料</div>'; sub.textContent=''; return; }
-    sub.textContent = `FB 市场开价(${esc(d.label)} 的地区)· 跟我们正常机最便宜的比,不含清货`;
+    sub.textContent = `FB 市场开价(${esc(d.label)} 的地区)· HSG / IPS / LelongFon 各自最便宜的一台`;
     const rm = v => v == null ? '-' : 'RM' + Number(v).toLocaleString();
     const diff = (o, m) => { if (!o || m == null) return '<span class="meta">没货</span>'; const x = o[0] - m;
       const col = x < -50 ? 'var(--ok)' : x > 50 ? 'var(--bad)' : 'var(--muted)';
@@ -219,10 +219,14 @@ async function loadMarket(day){
     const cell = (o, m) => { if (!o || m == null) return '<td class="mm">–</td><td></td>'; const x = o[0] - m;
       const col = x < -50 ? 'var(--ok)' : x > 50 ? 'var(--bad)' : 'var(--muted)';
       return `<td>${Number(o[0]).toLocaleString()}</td><td style="color:${col};font-weight:600">${x > 0 ? '+' : ''}${x}</td>`; };
-    h += `<div class="card" style="padding:8px 6px;overflow-x:auto"><table class="mt"><thead><tr><th>型号</th><th>卖家</th><th>市场</th><th>ZP</th><th>差</th><th>LL/CH</th><th>差</th><th>清货</th></tr></thead><tbody>` +
-      d.rows.map(r => `<tr><td class="mq">${short(r.query)}</td><td class="mm">${r.n}</td><td><b>${r.median == null ? '–' : Number(r.median).toLocaleString()}</b></td>${cell(r.ours_zp, r.median)}${cell(r.ours_import, r.median)}<td class="mm">${r.ours_clearance ? Number(r.ours_clearance[0]).toLocaleString() : '–'}</td></tr>`).join('') +
+    // per division: cheapest unit of HSG / IPS / LelongFon, its set under the price, difference vs market
+    const dcell = (r, dv) => { const o = (r.by_division || {})[dv]; if (!o || r.median == null) return '<td class="mm">–</td>';
+      const x = o[0] - r.median, col = x < -50 ? 'var(--ok)' : x > 50 ? 'var(--bad)' : 'var(--muted)';
+      return `<td>${Number(o[0]).toLocaleString()}<div style="font-size:10px;line-height:1.2"><span style="color:${col};font-weight:600">${x > 0 ? '+' : ''}${x}</span> <span class="mm">${esc(o[2] || '')}${o[3] ? '' : '⚠'}</span></div></td>`; };
+    h += `<div class="card" style="padding:8px 6px;overflow-x:auto"><table class="mt"><thead><tr><th>型号</th><th>卖家</th><th>市场</th><th>HSG</th><th>IPS</th><th>Lelong</th></tr></thead><tbody>` +
+      d.rows.map(r => `<tr><td class="mq">${short(r.query)}</td><td class="mm">${r.n}</td><td><b>${r.median == null ? '–' : Number(r.median).toLocaleString()}</b></td>${dcell(r,'hsg')}${dcell(r,'ips')}${dcell(r,'lelongfon')}</tr>`).join('') +
       `</tbody></table></div>`;
-    h += '<div class="meta">单位 RM。差 = 我们 − 市场一般价:绿色 = 我们便宜,红色 = 我们贵。市场价是别人的开价(电池/成色不一),不是成交价;没写 set 的帖大多是 ZP/MY。</div>';
+    h += '<div class="meta">单位 RM。每格:我们这家最便宜的价,下面是 跟市场差多少(绿 = 便宜、红 = 贵)和 set;⚠ = 有问题 / 清货机。市场价是别人的开价(电池/成色不一),不是成交价;没写 set 的帖大多是 ZP/MY。</div>';
     root.innerHTML = h;
     document.getElementById('mday').onchange = e => loadMarket(e.target.value);
   }catch(e){ root.innerHTML = '<div class="msg">连不上中枢</div>'; }
