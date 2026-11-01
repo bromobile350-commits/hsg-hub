@@ -45,6 +45,7 @@ select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);ba
 .unit .u{flex:1;min-width:0}.unit .u b{font-size:14px}.unit .p{color:var(--accent);font-weight:700}
 .unit button{width:auto;padding:6px 10px;font-size:13px;margin-top:6px}.unit button:disabled{opacity:.5}
 .tq{background:#dbeafe;color:#1e3a8a}.te{background:#e5e7eb;color:#374151}
+.mt{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}.mt th{font-size:11px;color:var(--muted);font-weight:500;text-align:right;padding:4px 3px;border-bottom:1px solid var(--line)}.mt td{text-align:right;padding:6px 3px;border-bottom:1px solid var(--line);white-space:nowrap}.mt th:first-child,.mt td.mq{text-align:left}.mt td.mm{color:var(--muted)}
 .back{display:inline-block;margin-bottom:10px;color:var(--accent);text-decoration:none}
 </style>
 </head>
@@ -214,11 +215,14 @@ async function loadMarket(day){
       const col = x < -50 ? 'var(--ok)' : x > 50 ? 'var(--bad)' : 'var(--muted)';
       return `${rm(o[0])} <small class="meta">${esc(o[1])}</small> <b style="color:${col}">${x > 0 ? '+' : ''}${x}</b>`; };
     let h = `<select id="mday">${(d.days||[]).map(x => `<option value="${x}" ${x===d.day?'selected':''}>${x.slice(5)}</option>`).join('')}</select>`;
-    h += d.rows.map(r => `<div class="card"><div class="row"><span class="name" style="font-size:15px">${esc(r.query)}</span><span class="meta" style="margin:0">${r.n} 个在卖</span></div>
-      <div class="meta" style="margin:4px 0">市场一般 <b>${rm(r.median)}</b>(${rm(r.min)}–${rm(r.max)})${r.zp_tagged_median ? ' · 写明 ZP 的 ' + r.zp_tagged_n + ' 个:' + rm(r.zp_tagged_median) : ''}</div>
-      <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:0"><div><span>我们 ZP/MY</span><br>${diff(r.ours_zp, r.median)}</div><div><span>我们 LL/CH</span><br>${diff(r.ours_import, r.median)}</div></div>
-      ${r.ours_clearance ? `<div class="meta" style="margin:6px 0 0">清货机最低 ${rm(r.ours_clearance[0])}(${esc(r.ours_clearance[1])})</div>` : ''}</div>`).join('');
-    h += '<div class="meta">绿色 = 我们比市场便宜,红色 = 比市场贵。市场价是别人的开价(电池/成色不一),不是成交价;没写 set 的帖大多是 ZP/MY。</div>';
+    const short = q => esc(q.replace(/^iPhone\s*/i, '').replace(/\s*GB$/i, '').replace(/ Pro Max/i, ' PM'));
+    const cell = (o, m) => { if (!o || m == null) return '<td class="mm">–</td><td></td>'; const x = o[0] - m;
+      const col = x < -50 ? 'var(--ok)' : x > 50 ? 'var(--bad)' : 'var(--muted)';
+      return `<td>${Number(o[0]).toLocaleString()}</td><td style="color:${col};font-weight:600">${x > 0 ? '+' : ''}${x}</td>`; };
+    h += `<div class="card" style="padding:8px 6px;overflow-x:auto"><table class="mt"><thead><tr><th>型号</th><th>卖家</th><th>市场</th><th>ZP</th><th>差</th><th>LL/CH</th><th>差</th><th>清货</th></tr></thead><tbody>` +
+      d.rows.map(r => `<tr><td class="mq">${short(r.query)}</td><td class="mm">${r.n}</td><td><b>${r.median == null ? '–' : Number(r.median).toLocaleString()}</b></td>${cell(r.ours_zp, r.median)}${cell(r.ours_import, r.median)}<td class="mm">${r.ours_clearance ? Number(r.ours_clearance[0]).toLocaleString() : '–'}</td></tr>`).join('') +
+      `</tbody></table></div>`;
+    h += '<div class="meta">单位 RM。差 = 我们 − 市场一般价:绿色 = 我们便宜,红色 = 我们贵。市场价是别人的开价(电池/成色不一),不是成交价;没写 set 的帖大多是 ZP/MY。</div>';
     root.innerHTML = h;
     document.getElementById('mday').onchange = e => loadMarket(e.target.value);
   }catch(e){ root.innerHTML = '<div class="msg">连不上中枢</div>'; }
