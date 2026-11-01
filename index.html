@@ -50,7 +50,7 @@ select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);ba
 </head>
 <body>
 <h1>HSG 总管理</h1>
-<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a><a href="#" id="t3">待上架</a></div>
+<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a><a href="#" id="t3">待上架</a><a href="#" id="t4">市场价</a></div>
 <div class="sub" id="sub">载入中…</div>
 <div id="root"></div>
 <button id="refresh">刷新</button>
@@ -199,11 +199,35 @@ async function loadToList(){
     });
   }catch(e){ document.getElementById('list').innerHTML = '<div class="msg">连不上中枢</div>'; }
 }
-const tab = n => ['t1','t2','t3'].forEach((t,i) => document.getElementById(t).className = (i+1===n ? 'on' : ''));
+const tab = n => ['t1','t2','t3','t4'].forEach((t,i) => document.getElementById(t).className = (i+1===n ? 'on' : ''));
+
+async function loadMarket(day){
+  view = 'market';
+  const sub = document.getElementById('sub'), root = document.getElementById('root');
+  root.innerHTML = '<div class="msg">载入中…</div>';
+  try{
+    const d = await (await fetch(API + 'api/market' + (day ? '?day=' + day : ''), {headers:H(), cache:'no-store'})).json();
+    if (!d.rows || !d.rows.length){ root.innerHTML = '<div class="msg">还没有市场价资料</div>'; sub.textContent=''; return; }
+    sub.textContent = `FB 市场开价(${esc(d.label)} 的地区)· 跟我们正常机最便宜的比,不含清货`;
+    const rm = v => v == null ? '-' : 'RM' + Number(v).toLocaleString();
+    const diff = (o, m) => { if (!o || m == null) return '<span class="meta">没货</span>'; const x = o[0] - m;
+      const col = x < -50 ? 'var(--ok)' : x > 50 ? 'var(--bad)' : 'var(--muted)';
+      return `${rm(o[0])} <small class="meta">${esc(o[1])}</small> <b style="color:${col}">${x > 0 ? '+' : ''}${x}</b>`; };
+    let h = `<select id="mday">${(d.days||[]).map(x => `<option value="${x}" ${x===d.day?'selected':''}>${x.slice(5)}</option>`).join('')}</select>`;
+    h += d.rows.map(r => `<div class="card"><div class="row"><span class="name" style="font-size:15px">${esc(r.query)}</span><span class="meta" style="margin:0">${r.n} 个在卖</span></div>
+      <div class="meta" style="margin:4px 0">市场一般 <b>${rm(r.median)}</b>(${rm(r.min)}–${rm(r.max)})${r.zp_tagged_median ? ' · 写明 ZP 的 ' + r.zp_tagged_n + ' 个:' + rm(r.zp_tagged_median) : ''}</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:0"><div><span>我们 ZP/MY</span><br>${diff(r.ours_zp, r.median)}</div><div><span>我们 LL/CH</span><br>${diff(r.ours_import, r.median)}</div></div>
+      ${r.ours_clearance ? `<div class="meta" style="margin:6px 0 0">清货机最低 ${rm(r.ours_clearance[0])}(${esc(r.ours_clearance[1])})</div>` : ''}</div>`).join('');
+    h += '<div class="meta">绿色 = 我们比市场便宜,红色 = 比市场贵。市场价是别人的开价(电池/成色不一),不是成交价;没写 set 的帖大多是 ZP/MY。</div>';
+    root.innerHTML = h;
+    document.getElementById('mday').onchange = e => loadMarket(e.target.value);
+  }catch(e){ root.innerHTML = '<div class="msg">连不上中枢</div>'; }
+}
+document.getElementById('t4').onclick = e => { e.preventDefault(); tab(4); loadMarket(); };
 document.getElementById('t3').onclick = e => { e.preventDefault(); tab(3); loadToList(); };
 document.getElementById('t1').onclick = e => { e.preventDefault(); tab(1); view='overview'; load(); };
 document.getElementById('t2').onclick = e => { e.preventDefault(); tab(2); loadChats(); };
-document.getElementById('refresh').onclick = () => view === 'overview' ? load() : view === 'chats' ? loadChats() : view === 'tolist' ? loadToList() : null;
+document.getElementById('refresh').onclick = () => view === 'overview' ? load() : view === 'chats' ? loadChats() : view === 'tolist' ? loadToList() : view === 'market' ? loadMarket() : null;
 load(); setInterval(() => { if (view === 'overview') load(); }, 60000);
 </script>
 </body>
