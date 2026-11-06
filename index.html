@@ -168,21 +168,24 @@ async function loadChat(tid){
   window.scrollTo(0, document.body.scrollHeight);
 }
 
-let selOut = '';
+let selOut = '', selSet = '';
 async function loadToList(){
   view = 'tolist';
   const sub = document.getElementById('sub'), root = document.getElementById('root');
   if (!stations.length){ try{ const r = await fetch(API + 'api/overview', {headers:H()}); stations = (await r.json()).stations || []; }catch(e){} }
   selSt = selSt || (stations[0] || {}).station || '';
   root.innerHTML = `<select id="st">${stations.map(s => `<option value="${esc(s.station)}" ${s.station===selSt?'selected':''}>${esc(s.label)}</option>`).join('')}</select>
-    <select id="ou"><option value="">KL + JB</option><option value="KL" ${selOut==='KL'?'selected':''}>只看 KL</option><option value="JB" ${selOut==='JB'?'selected':''}>只看 JB</option></select><div id="list"><div class="msg">载入中…</div></div>`;
+    <select id="ou"><option value="">KL + JB</option><option value="KL" ${selOut==='KL'?'selected':''}>只看 KL</option><option value="JB" ${selOut==='JB'?'selected':''}>只看 JB</option></select>
+    <select id="sg"><option value="">全部 set</option><option value="zp" ${selSet==='zp'?'selected':''}>ZP 组(ZP / MY / X)</option><option value="llch" ${selSet==='llch'?'selected':''}>LL / CH 组</option></select><div id="list"><div class="msg">载入中…</div></div>`;
   sub.textContent = '有货、没毛病、这台还没发帖的机';
   document.getElementById('st').onchange = e => { selSt = e.target.value; loadToList(); };
   document.getElementById('ou').onchange = e => { selOut = e.target.value; loadToList(); };
+  document.getElementById('sg').onchange = e => { selSet = e.target.value; loadToList(); };
   try{
     const r = await fetch(API + `api/tolist?station=${encodeURIComponent(selSt)}`, {headers:H(), cache:'no-store'});
     const d = await r.json();
-    const items = (d.items || []).filter(u => !selOut || u.outlet === selOut);
+    const grp = u => { const st = String(u.set || '').toUpperCase(); return ['ZP','MY','X'].includes(st) ? 'zp' : ['LL','CH'].includes(st) ? 'llch' : ''; };
+    const items = (d.items || []).filter(u => (!selOut || u.outlet === selOut) && (!selSet || grp(u) === selSet));
     const list = document.getElementById('list');
     if (!items.length){ list.innerHTML = '<div class="msg">没有待上架的机</div>'; return; }
     const JOB = {queued:'已准备,等电脑打开', opened:'已填好,等员工按发布', posted:'已发布', failed:'填表失败', closed:'窗口被关了', expired:'20 分钟没发,已关'};
