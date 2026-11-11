@@ -86,7 +86,7 @@ async function load(){
     if (!d.stations.length) h += '<div class="msg">还没有电脑上报</div>';
     const short = m => String(m || '').replace(/^.*\//, '').replace(/@.*$/, '');
     const nice = m => { const r = /^remote:/.test(m), n = short(String(m).replace(/^remote:/, ''));
-      return (/claude/.test(n) ? 'Claude ' + n.replace(/^claude-/, '').replace(/-/g, ' ') : /gpt/.test(n) ? 'GPT ' + n.replace(/^gpt-/, '') : n) + (r ? '(借 weiyi)' : '(本机)'); };
+      return (/claude/.test(n) ? 'Claude ' + n.replace(/^claude-/, '').replace(/-/g, ' ') : /gpt/.test(n) ? 'GPT ' + n.replace(/^gpt-/, '') : n) + (r ? '(主台 weiyi)' : '(本机)'); };
     if (mode === 'devices') sub.textContent = `设备和模型 · ${d.stations.length} 台电脑`;
     if (mode === 'usage') sub.textContent = 'AI 用量和费用(按 API 价估算)';
     for (const s of d.stations){
@@ -106,8 +106,9 @@ async function load(){
           <span>账户</span><div>${(() => { const ac = hl.accounts; if (!ac) return '更新后显示';
               return 'Claude:' + esc(ac.claude || '没登录') + '<br>GPT:' + ((ac.gpt || []).length ? ac.gpt.map(esc).join('、') : '没登录'); })()}</div>
           <span>先用</span><div><div style="display:flex;gap:6px">
+            <button class="sw" data-st="${esc(s.station)}" data-p="main" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'main' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">主台 Claude${s.ai_primary === 'main' ? ' ✓' : ''}</button>
             <button class="sw" data-st="${esc(s.station)}" data-p="gpt" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'gpt' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">GPT${s.ai_primary === 'gpt' ? ' ✓' : ''}</button>
-            <button class="sw" data-st="${esc(s.station)}" data-p="claude" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'claude' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">Claude${s.ai_primary === 'claude' ? ' ✓' : ''}</button></div>
+            <button class="sw" data-st="${esc(s.station)}" data-p="claude" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'claude' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">本机 Claude${s.ai_primary === 'claude' ? ' ✓' : ''}</button></div>
             ${ao.primary && ao.primary !== s.ai_primary ? '<div style="color:var(--muted);font-size:12px;margin-top:4px">已改,这台 5 分钟内生效</div>' : ''}</div>
           <span>本机 AI</span><div>${allRemote ? '<b style="color:var(--bad)">⚠️ 本机 AI 没在用,全靠 weiyi 的 GPT</b>' : c.unknown ? '<b style="color:var(--bad)">读不到设置</b>' : c.primary ? '主 ' + esc(short(c.primary)) + (fb.length ? ' · 备用 ' + esc(fb.join('、')) : ' · 备用 weiyi 的 GPT') : '-'}</div>
         </div></div>`;
@@ -135,7 +136,7 @@ async function load(){
     }
     root.innerHTML = h;
     root.querySelectorAll('button.sw').forEach(bt => bt.onclick = async () => {
-      const name = bt.dataset.p === 'gpt' ? 'GPT' : 'Claude';
+      const name = bt.dataset.p === 'gpt' ? 'GPT' : bt.dataset.p === 'main' ? '主台 M3 的 Claude(GPT 兜底)' : '本机 Claude';
       const go = async () => { bt.disabled = true;
         try { await fetch(API + 'api/ai_primary', {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, H()), body: JSON.stringify({station: bt.dataset.st, primary: bt.dataset.p})}); } catch(e){}
         load(); };
