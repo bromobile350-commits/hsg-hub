@@ -106,7 +106,12 @@ async function load(){
           <span>系统</span><div>${dv ? esc(dv.os || '-') + (dv.user ? ' · 用户 ' + esc(dv.user) : '') : '-'}</div>
           <span>程序</span><div>${hl.code_version ? '第 ' + hl.code_version + ' 版' : '-'} · 上报 ${ago(s.last_seen_s)} · 插件 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)}</div>
           <span>今天模型</span><div>${used.length ? used.map(([m, n]) => '<b>' + esc(nice(m)) + '</b> ' + n + ' 次').join('<br>') : '今天还没回复'}${t.errors ? ' · 出错 ' + t.errors : ''}</div>
-          <span>设定</span><div>${ao.primary ? (ao.primary === 'gpt' ? 'GPT 优先,Claude 备用' : 'Claude 优先,GPT 备用') : '-'}</div>
+          <span>账户</span><div>${(() => { const ac = hl.accounts; if (!ac) return '更新后显示';
+              return 'Claude:' + esc(ac.claude || '没登录') + '<br>GPT:' + ((ac.gpt || []).length ? ac.gpt.map(esc).join('、') : '没登录'); })()}</div>
+          <span>先用</span><div><div style="display:flex;gap:6px">
+            <button class="sw" data-st="${esc(s.station)}" data-p="gpt" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'gpt' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">GPT${s.ai_primary === 'gpt' ? ' ✓' : ''}</button>
+            <button class="sw" data-st="${esc(s.station)}" data-p="claude" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'claude' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">Claude${s.ai_primary === 'claude' ? ' ✓' : ''}</button></div>
+            ${ao.primary && ao.primary !== s.ai_primary ? '<div style="color:var(--muted);font-size:12px;margin-top:4px">已改,这台 5 分钟内生效</div>' : ''}</div>
           <span>本机 AI</span><div>${allRemote ? '<b style="color:var(--bad)">⚠️ 本机 AI 没在用,全靠 weiyi 的 GPT</b>' : c.unknown ? '<b style="color:var(--bad)">读不到设置</b>' : c.primary ? '主 ' + esc(short(c.primary)) + (fb.length ? ' · 备用 ' + esc(fb.join('、')) : ' · 备用 weiyi 的 GPT') : '-'}</div>
         </div></div>`;
         continue;
@@ -132,6 +137,13 @@ async function load(){
       </div>`;
     }
     root.innerHTML = h;
+    root.querySelectorAll('button.sw').forEach(bt => bt.onclick = async () => {
+      const name = bt.dataset.p === 'gpt' ? 'GPT' : 'Claude';
+      const go = async () => { bt.disabled = true;
+        try { await fetch(API + 'api/ai_primary', {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, H()), body: JSON.stringify({station: bt.dataset.st, primary: bt.dataset.p})}); } catch(e){}
+        load(); };
+      if (tg && tg.showConfirm) tg.showConfirm('这台改成先用 ' + name + '?', ok => ok && go()); else if (confirm('这台改成先用 ' + name + '?')) go();
+    });
     const us = document.getElementById('uday');
     if (us){ if (window._uday) us.value = window._uday; us.onchange = () => { window._uday = us.value; loadUsageDay(us.value); }; loadUsageDay(us.value); }
   }catch(e){ root.innerHTML = '<div class="msg">连不上中枢(电脑关了或断网?)</div>'; sub.textContent=''; }
