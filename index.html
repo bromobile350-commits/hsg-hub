@@ -32,7 +32,7 @@ button{width:100%;padding:10px;border:0;border-radius:10px;background:var(--acce
 .tabs{display:flex;gap:6px;margin:0 0 12px}.tabs a{flex:1;text-align:center;padding:8px 2px;white-space:nowrap;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:12.5px}
 .kv{display:grid;grid-template-columns:64px 1fr;gap:4px 10px;font-size:13px;margin-top:8px}.kv span{color:var(--muted)}.kv div{min-width:0;word-break:break-word}
 .tabs a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px;margin-bottom:8px}
+select,input[type=date]{width:100%;min-width:0;box-sizing:border-box;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px;margin-bottom:8px}
 .item{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;color:var(--text);text-decoration:none}
 .item .l1{display:flex;justify-content:space-between;gap:8px;font-weight:600}.item .l2{color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tag{font-size:11px;padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:500}.th{background:#fde68a;color:#78350f}.tb{background:#bbf7d0;color:#14532d}
@@ -79,12 +79,9 @@ async function load(){
     const uw = d.usage_week || [], ut = uw.length ? uw[uw.length-1] : {usd:0,tokens:0}, u7 = uw.reduce((a,x) => a + x.usd, 0);
     const umax = Math.max(0.0001, ...uw.map(x => x.usd));
     if (mode === 'usage') h += `<div class="card"><div class="row"><span class="name">AI 用量(全部电脑)</span><span class="meta" style="margin:0">1 USD = RM${fx.toFixed(2)}</span></div>
-      <select id="uday" style="margin-top:8px">${Array.from({length: 30}, (_, i) => { const dd = ymd(new Date(Date.now() + 8*3600e3 - i*86400e3)); return `<option value="${dd}">${dd.slice(5)}${i===0?' 今天':i===1?' 昨天':''}</option>`; }).join('')}</select>
+      <select id="umon" style="margin-top:8px"></select>
+      <div style="display:flex;gap:8px;align-items:center"><input type="date" id="ufrom"><span class="meta" style="margin:0 0 8px">到</span><input type="date" id="uto"></div>
       <div id="uday_box"></div>
-      <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:8px"><div><b>${ktok(ut.tokens)}</b><span>今天 tokens</span></div>
-      <div><b>${rm(ut.usd)}</b><span>今天费用</span></div><div><b>${rm(u7)}</b><span>7 天费用</span></div></div>
-      <div class="week">${uw.map(x => `<div class="bar" title="${x.day} ${rm(x.usd)}" style="height:${Math.round(x.usd / umax * 100)}%"></div>`).join('')}</div>
-      <div class="days">${uw.map(x => `<span>${x.day.slice(8)}</span>`).join('')}</div>
       <div class="meta" style="margin:6px 0 0">按 API 官方价估算(GPT-6 Astra 输入 $10 / 输出 $50,Claude Opus 5.5 输入 $4 / 输出 $20,每百万 tokens)。用 Claude / ChatGPT 订阅登录的不按 token 收费,这里是“如果用 API 要付多少”。第 24 版之前的调用没有 token 记录,按每次约 1.4 万 tokens 估算。</div></div>`;
     if (!d.stations.length) h += '<div class="msg">还没有电脑上报</div>';
     const short = m => String(m || '').replace(/^.*\//, '').replace(/@.*$/, '');
@@ -144,18 +141,44 @@ async function load(){
         load(); };
       if (tg && tg.showConfirm) tg.showConfirm('这台改成先用 ' + name + '?', ok => ok && go()); else if (confirm('这台改成先用 ' + name + '?')) go();
     });
-    const us = document.getElementById('uday');
-    if (us){ if (window._uday) us.value = window._uday; us.onchange = () => { window._uday = us.value; loadUsageDay(us.value); }; loadUsageDay(us.value); }
+    if (document.getElementById('umon')) setupUsage(d.today);
   }catch(e){ root.innerHTML = '<div class="msg">连不上中枢(电脑关了或断网?)</div>'; sub.textContent=''; }
 }
-async function loadUsageDay(day){
+function setupUsage(today){
+  const mon = document.getElementById('umon'), f = document.getElementById('ufrom'), t = document.getElementById('uto');
+  const D = x => new Date(x + 'T00:00:00Z'), add = (x, n) => ymd(new Date(D(x).getTime() + n*86400e3));
+  const opts = [['today','今天 ' + today.slice(5), today, today], ['yest','昨天 ' + add(today,-1).slice(5), add(today,-1), add(today,-1)], ['7d','最近 7 天', add(today,-6), today]];
+  let y = +today.slice(0,4), m = +today.slice(5,7);
+  for (let i = 0; i < 12; i++){
+    const mm = String(m).padStart(2,'0'), last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const end = i === 0 ? today : `${y}-${mm}-${String(last).padStart(2,'0')}`;
+    opts.push([`m${y}${mm}`, `${y} 年 ${m} 月${i===0?'(本月)':i===1?'(上个月)':''}`, `${y}-${mm}-01`, end]);
+    if (--m < 1){ m = 12; y--; }
+  }
+  mon.innerHTML = opts.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('') + '<option value="custom">自己选日期</option>';
+  f.max = t.max = today;
+  const st = window._urange || {key: opts[3][0], from: opts[3][2], to: opts[3][3]};
+  const apply = () => { window._urange = st; mon.value = st.key; f.value = st.from; t.value = st.to; loadUsageRange(st.from, st.to); };
+  mon.onchange = () => { const o = opts.find(x => x[0] === mon.value); if (o){ st.key = o[0]; st.from = o[2]; st.to = o[3]; apply(); } };
+  const custom = () => { if (!f.value || !t.value) return; st.key = 'custom'; st.from = f.value <= t.value ? f.value : t.value; st.to = f.value <= t.value ? t.value : f.value; apply(); };
+  f.onchange = custom; t.onchange = custom;
+  apply();
+}
+async function loadUsageRange(from, to){
   const box = document.getElementById('uday_box'); if (!box) return;
   try{
-    const d = await (await fetch(API + 'api/usage?day=' + day, {headers:H(), cache:'no-store'})).json();
+    const d = await (await fetch(API + 'api/usage?from=' + from + '&to=' + to, {headers:H(), cache:'no-store'})).json();
     const fx = d.usd_myr || 4.1, rm = u => 'RM' + (u * fx).toFixed(2), kt = n => n >= 1e6 ? (n/1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n/1e3) + 'K' : String(n);
-    if (!d.stations.length){ box.innerHTML = '<div class="meta" style="margin:6px 0">这天没有记录</div>'; return; }
-    box.innerHTML = `<div class="grid" style="grid-template-columns:repeat(3,1fr);margin:8px 0 4px"><div><b>${kt(d.total.tokens)}</b><span>tokens</span></div><div><b>${d.total.calls}</b><span>次调用</span></div><div><b>${rm(d.total.usd)}</b><span>费用</span></div></div>` +
-      d.stations.map(r => `<div class="meta" style="margin:2px 0">${esc(r.label)}:${r.calls} 次 · ${kt(r.tokens)} tokens · <b>${rm(r.usd)}</b>${r.estimated_calls ? '(' + r.estimated_calls + ' 次估算)' : ''} · ${Object.entries(r.models).map(([m,x]) => esc(m) + ' ' + rm(x.usd)).join(' / ')}</div>`).join('');
+    const title = `<div class="meta" style="margin:2px 0 0">${from === to ? from : from + ' 到 ' + to}${d.first_day && from < d.first_day ? ' · 记录从 ' + d.first_day + ' 开始' : ''}</div>`;
+    if (!d.stations.length){ box.innerHTML = title + '<div class="meta" style="margin:6px 0">这段时间没有记录</div>'; return; }
+    const mx = Math.max(0.0001, ...d.days.map(x => x.usd)), n = d.days.length, step = n > 16 ? 5 : n > 8 ? 2 : 1;
+    box.innerHTML = title + `<div class="grid" style="grid-template-columns:repeat(3,1fr);margin:8px 0 4px"><div><b>${kt(d.total.tokens)}</b><span>tokens</span></div><div><b>${d.total.calls}</b><span>次调用</span></div><div><b>${rm(d.total.usd)}</b><span>费用</span></div></div>` +
+      (n > 1 ? `<div class="meta" style="margin:2px 0">有记录 ${n} 天 · 平均每天 <b>${rm(d.total.usd / n)}</b></div>
+        <div class="week">${d.days.map(x => `<div class="bar" title="${x.day} ${rm(x.usd)}" style="height:${Math.round(x.usd / mx * 100)}%"></div>`).join('')}</div>
+        <div class="days">${d.days.map((x, i) => `<span>${i % step === 0 || i === n-1 && step === 1 ? x.day.slice(8) : ''}</span>`).join('')}</div>` : '') +
+      '<div class="meta" style="margin:8px 0 2px"><b>每台电脑</b></div>' +
+      d.stations.map(r => `<div class="meta" style="margin:2px 0">${esc(r.label)}:${r.calls} 次 · ${kt(r.tokens)} tokens · <b>${rm(r.usd)}</b>${r.estimated_calls ? '(' + r.estimated_calls + ' 次估算)' : ''} · ${Object.entries(r.models).map(([m,x]) => esc(m) + ' ' + rm(x.usd)).join(' / ')}</div>`).join('') +
+      (n > 1 ? '<div class="meta" style="margin:8px 0 2px"><b>每天</b></div>' + d.days.slice().reverse().map(x => `<div class="meta" style="margin:2px 0">${x.day.slice(5)}:${x.calls} 次 · ${kt(x.tokens)} tokens · <b>${rm(x.usd)}</b></div>`).join('') : '');
   }catch(e){ box.innerHTML = '<div class="meta">读不到</div>'; }
 }
 let mode = 'overview';
