@@ -92,6 +92,16 @@ async function load(){
       h += `<div class="card">
         <div class="row"><span class="name">${esc(s.label)}</span><span class="pill ${s.status}">${STATUS[s.status]}</span></div>
         <div class="meta">上报 ${ago(s.last_seen_s)} · 扩展 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)} · 等你回 ${hl.waiting_for_boss ?? 0} · 模型 ${esc(hl.model || '-')} · 对话记录 ${hl.last_upload ? hl.last_upload.slice(5) + ' 已交' : '还没交'} · 程序 ${hl.code_version ? '第 ' + hl.code_version + ' 版' : '未开自动更新'}</div>
+        ${(() => { const dv = hl.device, t = hl.ai_today || {}, ao = hl.ai_order || {};
+            const nice = m => { const r = /^remote:/.test(m); const n = String(m).replace(/^remote:/, '').replace(/^.*\//, '').replace(/@.*$/, '');
+              const nm = /claude/.test(n) ? 'Claude ' + n.replace(/^claude-/, '').replace(/-/g, ' ') : /gpt/.test(n) ? 'GPT ' + n.replace(/^gpt-/, '') : n;
+              return nm + (r ? '(借 weiyi 的)' : '(本机)'); };
+            const used = Object.entries(t.models || {}).sort((a, b) => b[1] - a[1]);
+            const now = used.length ? used.map(([m, n]) => esc(nice(m)) + ' ' + n + ' 次').join(' · ') : '今天还没回复';
+            const want = ao.primary ? (ao.primary === 'gpt' ? 'GPT 优先' : 'Claude 优先') : '-';
+            const warn = used.length && used.every(([m]) => /^remote:/.test(m)) ? ' <b style="color:var(--bad)">⚠️ 本机 AI 用不了</b>' : '';
+            const dev = dv ? [dv.name || dv.host, dv.model, dv.chip, dv.os, dv.user ? '用户 ' + dv.user : ''].filter(Boolean).map(esc).join(' · ') : '更新到第 58 版后显示';
+            return `<div class="meta">🤖 今天回买家的模型:<b>${now}</b>${warn} · 设定:${want}</div><div class="meta">💻 电脑:${dev}</div>`; })()}
         ${(() => { const c = hl.ai_cfg || null, t = hl.ai_today || {}; if (!c) return '<div class="meta">AI 设置:这台还没报上来(要先装自动更新)</div>';
             if (c.unknown) return `<div class="meta">AI 设置:读不到(${esc(c.error || '?')})</div>`;
             const short = m => String(m || '').replace(/^.*\//, '').replace(/@.*$/, '');
