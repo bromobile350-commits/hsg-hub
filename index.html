@@ -29,7 +29,8 @@ h1{font-size:20px;margin:0 0 2px}
 .book{font-size:12px;color:var(--muted);margin-top:8px}
 .msg{color:var(--muted);text-align:center;padding:40px 0}
 button{width:100%;padding:10px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:15px;margin-top:4px}
-.tabs{display:flex;gap:6px;margin:0 0 12px}.tabs a{flex:1;text-align:center;padding:8px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:14px}
+.tabs{display:flex;gap:6px;margin:0 0 12px}.tabs a{flex:1;text-align:center;padding:8px 2px;white-space:nowrap;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:12.5px}
+.kv{display:grid;grid-template-columns:64px 1fr;gap:4px 10px;font-size:13px;margin-top:8px}.kv span{color:var(--muted)}.kv div{min-width:0;word-break:break-word}
 .tabs a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px;margin-bottom:8px}
 .item{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;color:var(--text);text-decoration:none}
@@ -51,7 +52,7 @@ select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);ba
 </head>
 <body>
 <h1>HSG 总管理</h1>
-<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a><a href="#" id="t3">待上架</a><a href="#" id="t4">市场价</a></div>
+<div class="tabs"><a href="#" id="t1" class="on">总览</a><a href="#" id="t2">聊天记录</a><a href="#" id="t3">待上架</a><a href="#" id="t4">市场价</a><a href="#" id="t5">设备</a><a href="#" id="t6">用量</a></div>
 <div class="sub" id="sub">载入中…</div>
 <div id="root"></div>
 <button id="refresh">刷新</button>
@@ -70,14 +71,14 @@ async function load(){
     const d = await r.json();
     const t = d.total;
     sub.textContent = `今天 ${d.today.slice(5)} · ${d.stations.length} 台电脑 · 更新于 ${new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'})}`;
-    let h = `<div class="totals">
+    let h = mode !== 'overview' ? '' : `<div class="totals">
       <div class="t"><b>${t.asked}</b><span>询问</span></div><div class="t"><b>${t.new}</b><span>新买家</span></div>
       <div class="t"><b>${t.sent}</b><span>回复</span></div><div class="t"><b>${t.bookings}</b><span>预约</span></div>
       <div class="t"><b>${t.human}</b><span>转人工</span></div></div>`;
     const fx = d.usd_myr || 4.1, rm = u => 'RM' + (u * fx).toFixed(2), ktok = n => n >= 1e6 ? (n/1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n/1e3) + 'K' : String(n);
     const uw = d.usage_week || [], ut = uw.length ? uw[uw.length-1] : {usd:0,tokens:0}, u7 = uw.reduce((a,x) => a + x.usd, 0);
     const umax = Math.max(0.0001, ...uw.map(x => x.usd));
-    h += `<div class="card"><div class="row"><span class="name">AI 用量</span><span class="meta" style="margin:0">1 USD = RM${fx.toFixed(2)}</span></div>
+    if (mode === 'usage') h += `<div class="card"><div class="row"><span class="name">AI 用量(全部电脑)</span><span class="meta" style="margin:0">1 USD = RM${fx.toFixed(2)}</span></div>
       <select id="uday" style="margin-top:8px">${Array.from({length: 30}, (_, i) => { const dd = ymd(new Date(Date.now() + 8*3600e3 - i*86400e3)); return `<option value="${dd}">${dd.slice(5)}${i===0?' 今天':i===1?' 昨天':''}</option>`; }).join('')}</select>
       <div id="uday_box"></div>
       <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:8px"><div><b>${ktok(ut.tokens)}</b><span>今天 tokens</span></div>
@@ -86,35 +87,42 @@ async function load(){
       <div class="days">${uw.map(x => `<span>${x.day.slice(8)}</span>`).join('')}</div>
       <div class="meta" style="margin:6px 0 0">按 API 官方价估算(GPT-6 Astra 输入 $10 / 输出 $50,Claude Opus 5.5 输入 $4 / 输出 $20,每百万 tokens)。用 Claude / ChatGPT 订阅登录的不按 token 收费,这里是“如果用 API 要付多少”。第 24 版之前的调用没有 token 记录,按每次约 1.4 万 tokens 估算。</div></div>`;
     if (!d.stations.length) h += '<div class="msg">还没有电脑上报</div>';
+    const short = m => String(m || '').replace(/^.*\//, '').replace(/@.*$/, '');
+    const nice = m => { const r = /^remote:/.test(m), n = short(String(m).replace(/^remote:/, ''));
+      return (/claude/.test(n) ? 'Claude ' + n.replace(/^claude-/, '').replace(/-/g, ' ') : /gpt/.test(n) ? 'GPT ' + n.replace(/^gpt-/, '') : n) + (r ? '(借 weiyi)' : '(本机)'); };
+    if (mode === 'devices') sub.textContent = `设备和模型 · ${d.stations.length} 台电脑`;
+    if (mode === 'usage') sub.textContent = 'AI 用量和费用(按 API 价估算)';
     for (const s of d.stations){
       const td = s.today || {}, hl = s.health || {};
-      const max = Math.max(1, ...s.week.map(w => w.asked));
-      h += `<div class="card">
-        <div class="row"><span class="name">${esc(s.label)}</span><span class="pill ${s.status}">${STATUS[s.status]}</span></div>
-        <div class="meta">上报 ${ago(s.last_seen_s)} · 扩展 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)} · 等你回 ${hl.waiting_for_boss ?? 0} · 模型 ${esc(hl.model || '-')} · 对话记录 ${hl.last_upload ? hl.last_upload.slice(5) + ' 已交' : '还没交'} · 程序 ${hl.code_version ? '第 ' + hl.code_version + ' 版' : '未开自动更新'}</div>
-        ${(() => { const dv = hl.device, t = hl.ai_today || {}, ao = hl.ai_order || {};
-            const nice = m => { const r = /^remote:/.test(m); const n = String(m).replace(/^remote:/, '').replace(/^.*\//, '').replace(/@.*$/, '');
-              const nm = /claude/.test(n) ? 'Claude ' + n.replace(/^claude-/, '').replace(/-/g, ' ') : /gpt/.test(n) ? 'GPT ' + n.replace(/^gpt-/, '') : n;
-              return nm + (r ? '(借 weiyi 的)' : '(本机)'); };
-            const used = Object.entries(t.models || {}).sort((a, b) => b[1] - a[1]);
-            const now = used.length ? used.map(([m, n]) => esc(nice(m)) + ' ' + n + ' 次').join(' · ') : '今天还没回复';
-            const want = ao.primary ? (ao.primary === 'gpt' ? 'GPT 优先' : 'Claude 优先') : '-';
-            const warn = used.length && used.every(([m]) => /^remote:/.test(m)) ? ' <b style="color:var(--bad)">⚠️ 本机 AI 用不了</b>' : '';
-            const dev = dv ? [dv.name || dv.host, dv.model, dv.chip, dv.os, dv.user ? '用户 ' + dv.user : ''].filter(Boolean).map(esc).join(' · ') : '更新到第 58 版后显示';
-            return `<div class="meta">🤖 今天回买家的模型:<b>${now}</b>${warn} · 设定:${want}</div><div class="meta">💻 电脑:${dev}</div>`; })()}
-        ${(() => { const c = hl.ai_cfg || null, t = hl.ai_today || {}; if (!c) return '<div class="meta">AI 设置:这台还没报上来(要先装自动更新)</div>';
-            if (c.unknown) return `<div class="meta">AI 设置:读不到(${esc(c.error || '?')})</div>`;
-            const short = m => String(m || '').replace(/^.*\//, '').replace(/@.*$/, '');
-            const fb = (c.fallbacks || []).map(short);
-            const used = Object.entries(t.models || {}).map(([m, n]) => short(m) + '×' + n).join(' ');
-            const ord = hl.ai_order ? (hl.ai_order.primary === 'gpt' ? `现在先用 GPT(${hl.ai_order.local_gpt ? '本机' : (hl.ai_order.probe_fail_until && hl.ai_order.probe_fail_until*1000 > Date.now() ? 'weiyi 远程' : '本机 / weiyi')}),Claude 备用 · ` : '现在先用 Claude · ') : '';
-            return `<div class="meta">${ord}AI:主 ${esc(short(c.primary) || '?')} · 备用 ${fb.length ? esc(fb.join('、')) + ' ✅' : (hl.code_version >= 16 ? 'weiyi 的 GPT(远程)✅' : '<b style="color:var(--bad)">没有备用 ❌</b>')}${used ? ' · 今天 ' + esc(used) : ''}${t.errors ? ' · 出错 ' + t.errors : ''}</div>`; })()}
-        ${(() => { const L = hl.listings || {}; if (!L.day) return '<div class="meta">Listing:还没读到(每天 11 点读一次)</div>';
-            if (L.total != null) return `<div class="meta">Listing(${L.day.slice(5)} 读):在售 ${L.active} · 已售 ${L.sold} · 今天新上架 ${L.new_today} · 7 天新上架 ${L.new_7d} · 总点击 ${L.clicks}</div>`;
-            return `<div class="meta">Listing(${L.day.slice(5)}):挂着 ${L.active}${L.new_since_last == null ? ' · 第一次读,明天开始算新发' : ' · 比上次新发 ' + L.new_since_last + ' · 下架 ' + L.gone_since_last}${L.new_7d != null ? ' · 7 天新发 ' + L.new_7d : ''}</div>`; })()}
-        ${(() => { const u = s.usage_today; if (!u || !(u.in + u.out)) return '';
-            const per = Object.entries(u.models || {}).map(([m, x]) => `${esc(m)} ${x.calls} 次 ${ktok(x.in + x.out + x.cache_read + x.cache_write)}`).join(' · ');
-            return `<div class="meta">AI 用量今天:${ktok(u.in + u.out + u.cache_read + u.cache_write)} tokens ≈ <b>${rm(u.usd)}</b>${u.estimated_calls ? '(其中 ' + u.estimated_calls + ' 次按平均估算)' : ''} · 7 天 ${rm(s.usage_7d_usd || 0)} · ${per}</div>`; })()}
+      const head = `<div class="row"><span class="name">${esc(s.label)}</span><span class="pill ${s.status}">${STATUS[s.status]}</span></div>`;
+      if (mode === 'devices'){
+        const dv = hl.device, t = hl.ai_today || {}, ao = hl.ai_order || {}, c = hl.ai_cfg || {};
+        const used = Object.entries(t.models || {}).sort((a, b) => b[1] - a[1]);
+        const allRemote = used.length && used.every(([m]) => /^remote:/.test(m));
+        const fb = (c.fallbacks || []).map(short);
+        h += `<div class="card">${head}<div class="kv">
+          <span>电脑</span><div>${dv ? esc(dv.name || dv.host) : '更新后显示'}</div>
+          <span>型号</span><div>${dv ? esc([dv.model, dv.chip].filter(Boolean).join(' · ') || '-') : '-'}</div>
+          <span>系统</span><div>${dv ? esc(dv.os || '-') + (dv.user ? ' · 用户 ' + esc(dv.user) : '') : '-'}</div>
+          <span>程序</span><div>${hl.code_version ? '第 ' + hl.code_version + ' 版' : '-'} · 上报 ${ago(s.last_seen_s)} · 插件 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)}</div>
+          <span>今天模型</span><div>${used.length ? used.map(([m, n]) => '<b>' + esc(nice(m)) + '</b> ' + n + ' 次').join('<br>') : '今天还没回复'}${t.errors ? ' · 出错 ' + t.errors : ''}</div>
+          <span>设定</span><div>${ao.primary ? (ao.primary === 'gpt' ? 'GPT 优先,Claude 备用' : 'Claude 优先,GPT 备用') : '-'}</div>
+          <span>本机 AI</span><div>${allRemote ? '<b style="color:var(--bad)">⚠️ 本机 AI 没在用,全靠 weiyi 的 GPT</b>' : c.unknown ? '<b style="color:var(--bad)">读不到设置</b>' : c.primary ? '主 ' + esc(short(c.primary)) + (fb.length ? ' · 备用 ' + esc(fb.join('、')) : ' · 备用 weiyi 的 GPT') : '-'}</div>
+        </div></div>`;
+        continue;
+      }
+      if (mode === 'usage'){
+        const u = s.usage_today;
+        const per = u ? Object.entries(u.models || {}).map(([m, x]) => `${esc(m)} ${x.calls} 次 ${ktok(x.in + x.out + x.cache_read + x.cache_write)}`).join('<br>') : '';
+        h += `<div class="card">${head}<div class="kv">
+          <span>今天</span><div>${u && (u.in + u.out) ? ktok(u.in + u.out + u.cache_read + u.cache_write) + ' tokens ≈ <b>' + rm(u.usd) + '</b>' : '没有用量'}</div>
+          <span>7 天</span><div><b>${rm(s.usage_7d_usd || 0)}</b></div>
+          <span>模型</span><div>${per || '-'}</div></div></div>`;
+        continue;
+      }
+      const max = Math.max(1, ...s.week.map(w => w.asked)), L = hl.listings || {};
+      h += `<div class="card">${head}
+        <div class="meta">${L.total != null ? `帖子:在售 ${L.active} · 已售 ${L.sold} · 今天新上 ${L.new_today} · 点击 ${L.clicks}` : L.day ? `帖子:挂着 ${L.active}` : '帖子:还没读到'}${hl.waiting_for_boss ? ' · 等你回 ' + hl.waiting_for_boss : ''}</div>
         <div class="grid">
           <div><b>${td.asked ?? 0}</b><span>询问</span></div><div><b>${td.sent ?? 0}</b><span>回复</span></div>
           <div><b>${(td.bookings || []).length}</b><span>预约</span></div><div><b>${td.human ?? 0}</b><span>转人工</span></div></div>
@@ -138,6 +146,7 @@ async function loadUsageDay(day){
       d.stations.map(r => `<div class="meta" style="margin:2px 0">${esc(r.label)}:${r.calls} 次 · ${kt(r.tokens)} tokens · <b>${rm(r.usd)}</b>${r.estimated_calls ? '(' + r.estimated_calls + ' 次估算)' : ''} · ${Object.entries(r.models).map(([m,x]) => esc(m) + ' ' + rm(x.usd)).join(' / ')}</div>`).join('');
   }catch(e){ box.innerHTML = '<div class="meta">读不到</div>'; }
 }
+let mode = 'overview';
 let view = 'overview', stations = [], selSt = '', selDay = '';
 const H = () => ({'X-TG-Init-Data': tg ? tg.initData : '', 'ngrok-skip-browser-warning': '1'});
 const ymd = d => d.toISOString().slice(0, 10);
@@ -213,7 +222,7 @@ async function loadToList(){
     });
   }catch(e){ document.getElementById('list').innerHTML = '<div class="msg">连不上中枢</div>'; }
 }
-const tab = n => ['t1','t2','t3','t4'].forEach((t,i) => document.getElementById(t).className = (i+1===n ? 'on' : ''));
+const tab = n => ['t1','t2','t3','t4','t5','t6'].forEach((t,i) => document.getElementById(t).className = (i+1===n ? 'on' : ''));
 
 async function loadMarket(day){
   view = 'market';
@@ -255,9 +264,12 @@ async function loadMarket(day){
 }
 document.getElementById('t4').onclick = e => { e.preventDefault(); tab(4); loadMarket(); };
 document.getElementById('t3').onclick = e => { e.preventDefault(); tab(3); loadToList(); };
-document.getElementById('t1').onclick = e => { e.preventDefault(); tab(1); view='overview'; load(); };
+document.getElementById('t1').onclick = e => { e.preventDefault(); tab(1); view='overview'; mode='overview'; load(); };
+document.getElementById('t5').onclick = e => { e.preventDefault(); tab(5); view='overview'; mode='devices'; load(); };
+document.getElementById('t6').onclick = e => { e.preventDefault(); tab(6); view='overview'; mode='usage'; load(); };
 document.getElementById('t2').onclick = e => { e.preventDefault(); tab(2); loadChats(); };
 document.getElementById('refresh').onclick = () => view === 'overview' ? load() : view === 'chats' ? loadChats() : view === 'tolist' ? loadToList() : view === 'market' ? loadMarket() : null;
+if (location.hash === '#devices'){ mode = 'devices'; tab(5); } else if (location.hash === '#usage'){ mode = 'usage'; tab(6); }
 load(); setInterval(() => { if (view === 'overview') load(); }, 60000);
 </script>
 </body>
