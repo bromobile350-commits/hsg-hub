@@ -89,28 +89,48 @@ async function load(){
       return (/claude/.test(n) ? 'Claude ' + n.replace(/^claude-/, '').replace(/-/g, ' ') : /gpt/.test(n) ? 'GPT ' + n.replace(/^gpt-/, '') : n) + (r ? '(主台 weiyi)' : '(本机)'); };
     if (mode === 'devices') sub.textContent = `设备和模型 · ${d.stations.length} 台电脑`;
     if (mode === 'usage') sub.textContent = 'AI 用量和费用(按 API 价估算)';
+    if (mode === 'devices' && d.main_ai){
+      const ma = d.main_ai, ms = d.stations.find(x => x.station === ma.station) || {}, mh = ms.health || {}, ac = mh.accounts || {}, dv = mh.device || {};
+      let nC = 0, nG = 0, nL = 0, nE = 0;
+      for (const x of d.stations){ const t = (x.health || {}).ai_today || {};
+        for (const [m, n] of Object.entries(t.models || {})){ if (/^remote:.*claude/.test(m)) nC += n; else if (/^remote:/.test(m)) nG += n; else nL += n; }
+        nE += t.errors || 0; }
+      const st = ma.stats || {}, nm = x => 'Claude ' + String(x).replace(/^claude-/, '').replace(/(\d)-(\d)/, '$1.$2').replace(/-/g, ' ').replace(/\b[a-z]/, c => c.toUpperCase());
+      const onMain = d.stations.filter(x => x.ai_primary === 'main').length;
+      const errAge = st.last_error_ts ? Math.round(d.now - st.last_error_ts) : null;
+      h += `<div class="card" style="border:1.5px solid var(--accent)"><div class="row"><span class="name">主台 AI(全部电脑共用)</span><span class="pill ${ms.status || 'offline'}">${STATUS[ms.status] || '离线'}</span></div>
+        <div class="kv">
+          <span>主台电脑</span><div>${esc(ms.label || 'weiyi')}${dv.model ? ' · ' + esc([dv.model, dv.chip].filter(Boolean).join(' · ')) : ''}</div>
+          <span>模型</span><div><select id="mainmodel" style="margin:0">${(ma.options || []).map(o => `<option value="${esc(o)}" ${o === ma.model ? 'selected' : ''}>${esc(nm(o))}</option>`).join('')}</select></div>
+          <span>兜底</span><div>GPT ${esc(String(ma.backup || '').replace(/^gpt-/, ''))}(Claude 失败时同一次请求自动接上)</div>
+          <span>账户</span><div>Claude:${esc(ac.claude || '读不到')}<br>GPT:${(ac.gpt || []).length ? ac.gpt.map(esc).join('、') : '读不到'}</div>
+          <span>使用中</span><div>${onMain} / ${d.stations.length} 台电脑用主台</div>
+          <span>今天</span><div><b>Claude ${nC} 次</b> · GPT 兜底 ${nG} 次${nL ? ' · 各台自己后备 ' + nL + ' 次' : ''}${nE ? ' · <span style="color:var(--bad)">各台出错 ' + nE + ' 次</span>' : ''}</div>
+          ${errAge != null && errAge < 6 * 3600 ? `<span>最近问题</span><div style="color:var(--muted)">${ago(errAge)}:${esc(String(st.last_error).slice(-110))}</div>` : ''}
+        </div></div>
+        <div class="meta" style="margin:10px 2px 4px">各台电脑</div>`;
+    }
     for (const s of d.stations){
       const td = s.today || {}, hl = s.health || {};
       const head = `<div class="row"><span class="name">${esc(s.label)}</span><span class="pill ${s.status}">${STATUS[s.status]}</span></div>`;
       if (mode === 'devices'){
         const dv = hl.device, t = hl.ai_today || {}, ao = hl.ai_order || {}, c = hl.ai_cfg || {};
-        const used = Object.entries(t.models || {}).sort((a, b) => b[1] - a[1]);
-        const allRemote = used.length && used.every(([m]) => /^remote:/.test(m));
-        const fb = (c.fallbacks || []).map(short);
+        let uC = 0, uG = 0, uL = 0;
+        for (const [m, n] of Object.entries(t.models || {})){ if (/^remote:.*claude/.test(m)) uC += n; else if (/^remote:/.test(m)) uG += n; else uL += n; }
+        const plug = hl.last_inbox_age_s == null || hl.last_inbox_age_s > 900;
+        const bad = '<span style="color:var(--bad)">', lk = ao.local_gpt ? 'GPT' : 'Claude';
+        const backup = uL ? '有,今天用了 ' + uL + ' 次(自己的 ' + lk + ')' : (ao.local_err || ao.probe_error || c.unknown || ((t.errors || 0) > 20)) ? bad + '坏了或没有,主台断线时这台会停</span>' : (ao.local_gpt || ao.local_claude) ? '有设定(自己的 ' + lk + '),今天没用到' : bad + '没有,主台断线时这台会停</span>';
+        const src = {main: '主台', gpt: '本机 GPT', claude: '本机 Claude'}[s.ai_primary] || s.ai_primary;
+        const off = 'background:var(--bg);color:var(--text);border:1px solid var(--line)';
+        const bt = (k, name) => `<button class="sw" data-st="${esc(s.station)}" data-p="${k}" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === k ? '' : off}">${name}${s.ai_primary === k ? ' ✓' : ''}</button>`;
         h += `<div class="card">${head}<div class="kv">
-          <span>电脑</span><div>${dv ? esc(dv.name || dv.host) : '更新后显示'}</div>
-          <span>型号</span><div>${dv ? esc([dv.model, dv.chip].filter(Boolean).join(' · ') || '-') : '-'}</div>
-          <span>系统</span><div>${dv ? esc(dv.os || '-') + (dv.user ? ' · 用户 ' + esc(dv.user) : '') : '-'}</div>
-          <span>程序</span><div>${hl.code_version ? '第 ' + hl.code_version + ' 版' : '-'} · 上报 ${ago(s.last_seen_s)} · 插件 ${hl.last_inbox_age_s == null ? '-' : ago(hl.last_inbox_age_s)}</div>
-          <span>今天模型</span><div>${used.length ? used.map(([m, n]) => '<b>' + esc(nice(m)) + '</b> ' + n + ' 次').join('<br>') : '今天还没回复'}${t.errors ? ' · 出错 ' + t.errors : ''}</div>
-          <span>账户</span><div>${(() => { const ac = hl.accounts; if (!ac) return '更新后显示';
-              return 'Claude:' + esc(ac.claude || '没登录') + '<br>GPT:' + ((ac.gpt || []).length ? ac.gpt.map(esc).join('、') : '没登录'); })()}</div>
-          <span>先用</span><div><div style="display:flex;gap:6px">
-            <button class="sw" data-st="${esc(s.station)}" data-p="main" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'main' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">主台 Claude${s.ai_primary === 'main' ? ' ✓' : ''}</button>
-            <button class="sw" data-st="${esc(s.station)}" data-p="gpt" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'gpt' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">GPT${s.ai_primary === 'gpt' ? ' ✓' : ''}</button>
-            <button class="sw" data-st="${esc(s.station)}" data-p="claude" style="margin:0;padding:6px;font-size:13px;${s.ai_primary === 'claude' ? '' : 'background:var(--bg);color:var(--text);border:1px solid var(--line)'}">本机 Claude${s.ai_primary === 'claude' ? ' ✓' : ''}</button></div>
-            ${ao.primary && ao.primary !== s.ai_primary ? '<div style="color:var(--muted);font-size:12px;margin-top:4px">已改,这台 5 分钟内生效</div>' : ''}</div>
-          <span>本机 AI</span><div>${allRemote ? '<b style="color:var(--bad)">⚠️ 本机 AI 没在用,全靠 weiyi 的 GPT</b>' : c.unknown ? '<b style="color:var(--bad)">读不到设置</b>' : c.primary ? '主 ' + esc(short(c.primary)) + (fb.length ? ' · 备用 ' + esc(fb.join('、')) : ' · 备用 weiyi 的 GPT') : '-'}</div>
+          <span>电脑</span><div>${dv ? esc(dv.name || dv.host) + '<br><span style="color:var(--muted)">' + esc([dv.model, dv.chip, dv.os].filter(Boolean).join(' · ')) + '</span>' : '更新后显示'}</div>
+          <span>程序</span><div>${hl.code_version ? '第 ' + hl.code_version + ' 版' : '-'} · 上报 ${ago(s.last_seen_s)}</div>
+          <span>插件</span><div>${s.status === 'offline' ? '-' : plug ? '<b style="color:var(--bad)">⚠️ 没连上,这台不会回买家</b><br><span style="color:var(--muted)">Chrome 打开 messenger.com/marketplace 并确认插件开着</span>' : '已连接 · ' + ago(hl.last_inbox_age_s)}</div>
+          <span>今天</span><div>${(s.today || {}).sent ?? 0} 条回复${uC + uG + uL ? ' · 主台 Claude ' + uC + (uG ? ' / GPT 兜底 ' + uG : '') + (uL ? ' / 自己后备 ' + uL : '') : ''}${t.errors ? ' · <span style="color:var(--bad)">出错 ' + t.errors + '</span>' : ''}</div>
+          <span>AI 来源</span><div><b>${esc(src)}</b>${ao.primary && ao.primary !== s.ai_primary ? ' <span style="color:var(--muted)">(已改,5 分钟内生效)</span>' : ''}
+            <details style="margin-top:4px"><summary style="color:var(--muted);font-size:12px">更改</summary><div style="display:flex;gap:6px;margin-top:6px">${bt('main', '主台')}${bt('gpt', '本机 GPT')}${bt('claude', '本机 Claude')}</div></details></div>
+          <span>断线后备</span><div>${backup}</div>
         </div></div>`;
         continue;
       }
@@ -135,8 +155,13 @@ async function load(){
       </div>`;
     }
     root.innerHTML = h;
+    const mmSel = document.getElementById('mainmodel');
+    if (mmSel) mmSel.onchange = () => { const v = mmSel.value, txt = mmSel.options[mmSel.selectedIndex].text;
+      const go = async () => { try { await fetch(API + 'api/main_model', {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, H()), body: JSON.stringify({model: v})}); } catch(e){} load(); };
+      const q = '全部电脑改用 ' + txt + '?下一条回复马上生效';
+      if (tg && tg.showConfirm) tg.showConfirm(q, ok => ok ? go() : load()); else if (confirm(q)) go(); else load(); };
     root.querySelectorAll('button.sw').forEach(bt => bt.onclick = async () => {
-      const name = bt.dataset.p === 'gpt' ? 'GPT' : bt.dataset.p === 'main' ? '主台 M3 的 Claude(GPT 兜底)' : '本机 Claude';
+      const name = bt.dataset.p === 'gpt' ? 'GPT' : bt.dataset.p === 'main' ? '主台(M3 的 Claude,GPT 兜底)' : '本机 Claude';
       const go = async () => { bt.disabled = true;
         try { await fetch(API + 'api/ai_primary', {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, H()), body: JSON.stringify({station: bt.dataset.st, primary: bt.dataset.p})}); } catch(e){}
         load(); };
