@@ -104,7 +104,12 @@ async function load(){
           <span>模型</span><div><select id="mainmodel" style="margin:0">${(ma.options || []).map(o => `<option value="${esc(o)}" ${o === ma.model ? 'selected' : ''}>${esc(nm(o))}</option>`).join('')}</select></div>
           <span>兜底</span><div>GPT ${esc(String(ma.backup || '').replace(/^gpt-/, ''))}</div>
           <span>账户</span><div>${esc(ac.claude || '读不到')}</div>
-          <span>今天</span><div>Claude <b>${nC}</b> 次 · GPT 兜底 <b>${nG}</b> 次${nE ? ' · <span style="color:var(--bad)">出错 ' + nE + '</span>' : ''}</div>
+          <span>今天</span><div>Claude <b>${nC}</b> 次 · GPT 兜底 <b>${nG}</b> 次</div>
+          ${(() => { const tot = {}; let n = 0; for (const x of d.stations){ const ew = x.errors_why || {}; n += Math.max(ew.n || 0, (((x.health || {}).ai_today || {}).errors) || 0);
+              for (const [k, v] of Object.entries(ew.why || {})) tot[k] = (tot[k] || 0) + v.n; }
+            const ws = Object.entries(tot).sort((a, b) => b[1] - a[1]);
+            const le = st.last_error && errAge != null && errAge < 6 * 3600 ? '<br><span style="color:var(--muted)">主台最近一次(' + ago(errAge) + '):' + esc(String(st.last_error).replace(/\s+/g, ' ').slice(-120)) + '</span>' : '';
+            return n ? `<span style="color:var(--bad)">出错</span><div><span style="color:var(--bad)">各台合计 ${n} 次</span>${ws.length ? '<br>' + ws.map(([k, v]) => esc(k) + ' ' + v + ' 次').join(' · ') : ''}${le}</div>` : (le ? '<span>提示</span><div>' + le.slice(4) + '</div>' : ''); })()}
         </div></div>
         <div class="card" style="padding-bottom:4px"><div class="row"><span class="name">各台电脑</span><span class="meta" style="margin:0">${onMain}/${d.stations.length} 台用主台</span></div>`;
     }
@@ -118,7 +123,12 @@ async function load(){
           : plug ? '<span style="color:var(--bad)">插件没连上,不会回买家</span>' : '正常 · 今天回 ' + ((s.today || {}).sent ?? 0) + ' 条';
         h += `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
           <div style="flex:1;min-width:0"><div style="font-weight:600">${esc(s.label)}</div>
-            <div style="font-size:12px;color:var(--muted)">${state}${ao.primary && ao.primary !== s.ai_primary ? ' · 已改,5 分钟内生效' : ''}</div></div>
+            <div style="font-size:12px;color:var(--muted)">${state}${ao.primary && ao.primary !== s.ai_primary ? ' · 已改,5 分钟内生效' : ''}</div>
+            ${(() => { const ew = s.errors_why || {}, ne = Math.max(ew.n || 0, ((hl.ai_today || {}).errors) || 0); if (!ne) return '';
+              const ws = Object.entries(ew.why || {}).sort((a, b) => b[1].n - a[1].n);
+              return `<details style="font-size:12px;margin-top:3px"><summary style="color:var(--bad)">今天 AI 出错 ${ne} 次${ws.length ? ':' + esc(ws[0][0]) : ''}</summary>
+                <div style="color:var(--muted);margin-top:3px">${ws.length ? ws.map(([k, v]) => esc(k) + ' ' + v.n + ' 次(' + v.first + (v.last && v.last !== v.first ? ' 到 ' + v.last : '') + ')').join('<br>') : '原因要等这台下次交记录才看得到(每小时一次)'}
+                ${ew.last ? '<br>最后一次 ' + ew.last_ts + ':' + esc(ew.last) : ''}${ew.upto ? '<br>记录到 ' + ew.upto : ''}</div></details>`; })()}</div>
           <select class="sw" data-st="${esc(s.station)}" data-cur="${esc(s.ai_primary)}" style="width:118px;margin:0;padding:7px;font-size:13px">
             <option value="main" ${s.ai_primary === 'main' ? 'selected' : ''}>主台</option><option value="gpt" ${s.ai_primary === 'gpt' ? 'selected' : ''}>本机 GPT</option><option value="claude" ${s.ai_primary === 'claude' ? 'selected' : ''}>本机 Claude</option></select></div>`;
         if (s === d.stations[d.stations.length - 1]) h += '</div>';
