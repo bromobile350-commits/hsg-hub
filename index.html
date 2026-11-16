@@ -57,7 +57,13 @@ select,input[type=date]{width:100%;min-width:0;box-sizing:border-box;padding:9px
 <div id="root"></div>
 <button id="refresh">刷新</button>
 <script>
-const API = (location.hostname.endsWith('github.io') ? 'https://clock-support-ladle.ngrok-free.dev/' : '');   // page on GitHub Pages, data from the hub
+// page on GitHub Pages, data from the hub. 11-17: the hub's address can change (free Cloudflare tunnel) -> read it from hub_url.json
+const API = (() => {
+  if (!location.hostname.endsWith('github.io')) return '';
+  try { const x = new XMLHttpRequest(); x.open('GET', 'hub_url.json?t=' + Date.now(), false); x.send();
+        return JSON.parse(x.responseText).url.replace(/\/$/, '') + '/'; }
+  catch (e) { return 'https://clock-support-ladle.ngrok-free.dev/'; }
+})();
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
